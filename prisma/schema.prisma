@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id           String        @id @default(cuid())
+  name         String
+  type         String        // checking, savings, credit
+  institution  String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+}
+
+model Category {
+  id              String           @id @default(cuid())
+  name            String
+  type            String           // income, expense, asset, liability, equity
+  parentId        String?
+  parent          Category?        @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children        Category[]       @relation("CategoryHierarchy")
+  sortOrder       Int              @default(0)
+  transactions    Transaction[]
+  merchantRules   MerchantRule[]
+  accountingRules AccountingRule[]
+  createdAt       DateTime         @default(now())
+}
+
+model Transaction {
+  id                 String    @id @default(cuid())
+  date               DateTime
+  amount             Float
+  description        String
+  rawMerchant        String
+  normalizedMerchant String?
+  categoryId         String?
+  category           Category? @relation(fields: [categoryId], references: [id])
+  accountId          String?
+  account            Account?  @relation(fields: [accountId], references: [id])
+  notes              String?
+  isReviewed         Boolean   @default(false)
+  autoCategorized    Boolean   @default(false)
+  ruleTier           String?   // HARD, SEMI_AGGRESSIVE, AGGRESSIVE
+  aiReasoning        String?
+  locationLat        Float?
+  locationLng        Float?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([normalizedMerchant])
+  @@index([categoryId])
+  @@index([date])
+  @@index([isReviewed])
+}
+
+model MerchantRule {
+  id              String   @id @default(cuid())
+  merchantPattern String   @unique
+  displayName     String?
+  categoryId      String
+  category        Category @relation(fields: [categoryId], references: [id])
+  tier            String   @default("HARD") // HARD, SEMI_AGGRESSIVE, AGGRESSIVE
+  autoCreated     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([merchantPattern])
+}
+
+model AccountingRule {
+  id          String    @id @default(cuid())
+  name        String
+  description String
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  tier        String    // HARD, SEMI_AGGRESSIVE, AGGRESSIVE
+  isActive    Boolean   @default(true)
+  metadata    String?   // JSON string for extra config (percentages, limits, etc.)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ContextNote {
+  id        String   @id @default(cuid())
+  startDate DateTime
+  endDate   DateTime
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model Settings {
+  id                      String   @id @default("default")
+  globalRiskProfile       String   @default("SEMI_AGGRESSIVE")
+  googleCalendarConnected Boolean  @default(false)
+  googleLocationConnected Boolean  @default(false)
+  updatedAt               DateTime @updatedAt
+}
